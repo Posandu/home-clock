@@ -19,7 +19,7 @@
             "includePath": [
                 "C:\\Users\\Posandu\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\3.1.2\\tools\\sdk\\include",
                 "C:\\Users\\Posandu\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\3.1.2\\tools\\sdk\\lwip2\\include",
-                "C:\\Users\\Posandu\\AppData\\Local\\Temp\\arduino\\sketches\\7A7EF460CC7C41A25EEF87A25E2CA33C\\core",
+                "F:\\arduino-cache\\core",
                 "C:\\Users\\Posandu\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\3.1.2\\cores\\esp8266",
                 "C:\\Users\\Posandu\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\3.1.2\\variants\\nodemcu",
                 "C:\\Users\\Posandu\\OneDrive\\Documents\\Arduino\\libraries\\ArduinoJson\\src",

@@ -16,7 +16,7 @@
 #define SCREEN_ADDRESS 0x3C
 #define SPEAKER_PIN D7
 #define WIFI_SSID "Dialog 4G 544"
-#define WIFI_PASS "5d1ddCFD" // Does not work for you
+#define WIFI_PASS "5d1ddCFD"
 #define OFF_BTN D8
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -275,6 +275,11 @@ void setup()
       ;
   }
 
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.println("Loading...");
   display.display();
   delay(2000);
 
@@ -291,12 +296,12 @@ void setup()
    */
   timeClient.begin();
   timeClient.setTimeOffset(19800);
+  timeClient.forceUpdate();
 
   /**
    * Server start
    */
   server.begin();
-
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.display();
@@ -315,18 +320,9 @@ void setup()
   loadAlarms();
 }
 
-unsigned long lastUpdate = 30000;
-
-int buttonState = 0;
-
 void loop()
 {
-  // Update the time every 30 seconds
-  if (millis() - lastUpdate > 30000)
-  {
-    timeClient.update();
-    lastUpdate = millis();
-  }
+  timeClient.update();
 
   /*
   Todo: figure out a more efficient way to do this
@@ -335,9 +331,7 @@ void loop()
   alarm_music();
   displayTime();
 
-  buttonState = digitalRead(OFF_BTN);
-
-  if (buttonState == HIGH)
+  if (digitalRead(OFF_BTN) == HIGH)
   {
     isRingingAlarm = false;
     noTone(SPEAKER_PIN);
