@@ -16,7 +16,7 @@
 #define SCREEN_ADDRESS 0x3C
 #define SPEAKER_PIN D7
 #define WIFI_SSID "Dialog 4G 544"
-#define WIFI_PASS "5d1ddCFD"
+#define WIFI_PASS "5d1ddCFD" // Does not work for you
 #define OFF_BTN D8
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
