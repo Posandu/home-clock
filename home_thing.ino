@@ -150,9 +150,6 @@ void loadAlarms()
 
   if (http.begin(client, "http://home-s1.tronic247.com/"))
   {
-    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
-    client->setInsecure();
-
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK)
     {
@@ -162,6 +159,9 @@ void loadAlarms()
       deserializeJson(doc, json);
 
       JsonArray alarmsJson = doc["alarms"];
+
+      Serial.println("Alarms loaded successfully");
+      Serial.println(json);
 
       for (JsonObject alarmJson : alarmsJson)
       {
@@ -275,10 +275,13 @@ void setup()
       ;
   }
 
+  display.display();
+  delay(1000);
   display.clearDisplay();
   display.setCursor(0, 0);
   display.setTextColor(WHITE);
   display.setTextSize(1);
+  display.setRotation(2);
   display.println("Loading...");
   display.display();
   delay(2000);
@@ -287,9 +290,13 @@ void setup()
    * Connect to the internet
    */
   WiFi.begin(ssid, password);
+  /*Keep trying to connect to the internet until it is connected*/
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
   Serial.println(WiFi.localIP());
-  std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
-  client->setInsecure();
 
   /**
    * Connect to the NTP server
@@ -304,6 +311,7 @@ void setup()
   server.begin();
   display.clearDisplay();
   display.setTextColor(WHITE);
+  display.setRotation(2);
   display.display();
 
   /**
