@@ -50,10 +50,8 @@ void displayTime()
     display.setCursor(0, 0);
 
     time_t epochTime = timeClient.getEpochTime();
-    // Display date
     display.print(weekDays[timeClient.getDay()]);
-    display.print(". ");
-
+    display.print(" ");
     struct tm *ptm = gmtime((time_t *)&epochTime);
     display.print(months[ptm->tm_mon]);
     display.println();
@@ -61,7 +59,7 @@ void displayTime()
 
     // Display time
     display.setTextSize(2);
-    display.print(timeClient.getHours() % 12);
+    display.print(timeClient.getHours() % 12 == 0 ? 12 : timeClient.getHours() % 12);
     display.print(":");
     display.print(timeClient.getMinutes());
     display.display();
@@ -417,57 +415,43 @@ void loop()
   {
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
-    client.println(""); //  do not forget this one
+    client.println(""); // do not forget this one
     client.println(R"html(
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 	<head>
-		<link
-			href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-			rel="stylesheet"
-			integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
-			crossorigin="anonymous"
-		/>
+		  <script src="https://cdn.tailwindcss.com"></script>
 	</head>
 
 	<div class="p-4 container-md m-auto">
-		<h1>Alarms</h1>
-		<button href="/ALARM" class="btn btn-primary" id="trigger">Trigger</button>
-    <button href="/STOP" class="btn btn-danger ms-2" id="stop">Stop</button>
+		<h1 class="text-4xl font-bold">Alarms</h1>
+		<button href="/ALARM" class="bg-blue-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" id="trigger">Trigger</button>
+		<button href="/STOP" class="bg-red-500 text-white font-bold py-2 px-4 rounded ml-2" id="stop">Stop</button>
 
 		<br /><br />
 
-		<div class="row g-3">
-			<div class="col-auto">
-				<label for="staticEmail2" class="visually-hidden">HH</label>
-				<input type="number" class="form-control" id="HH" />
+		<div class="flex items-center space-x-2">
+			<div>
+				<label for="HH" class="sr-only">HH</label>
+				<input type="number" class="border border-gray-300 rounded-md px-4 py-2" id="HH" />
 			</div>
-			<div class="col-auto">
-				<label for="inputPassword2" class="visually-hidden">MM</label>
-				<input type="number" class="form-control" id="MM" />
+			<div>
+				<label for="MM" class="sr-only">MM</label>
+				<input type="number" class="border border-gray-300 rounded-md px-4 py-2" id="MM" />
 			</div>
-			<div class="col-auto">
-				<button type="submit" class="btn btn-primary mb-3" onclick="addAlarm()">
+			<div>
+				<button type="submit" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md" onclick="addAlarm()">
 					Add Alarm
 				</button>
 			</div>
 		</div>
 
-		<h2>Current Alarms</h2>
-		<div id="alarms"></div>
+			<h2 class="text-2xl font-bold mt-4">Current Alarms</h2>
+			<div id="alarms"></div>
+		</div>
 	</div>
 
-	<link
-		href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-		rel="stylesheet"
-		integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
-		crossorigin="anonymous"
-	/>
-	<script
-		src="https://code.jquery.com/jquery-3.7.0.min.js"
-		integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g="
-		crossorigin="anonymous"
-	></script>
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
 
 	<script>
 		$("#trigger").click(function () {
@@ -484,7 +468,7 @@ void loop()
 			});
 		});
 
-    $("#stop").click(function () {
+		$("#stop").click(function () {
 			let t = $(this);
 			$(this).attr("disabled", true);
 
@@ -492,18 +476,18 @@ void loop()
 				url: "/STOP",
 			});
 
-      let i = 1;
-					const interval = setInterval(function () {
-						t.text(`Reconnecting (${i++}s)`);
-						$.ajax({
-							url: "/",
-							complete: function (data) {
-								clearInterval(interval);
-								t.attr("disabled", false);
-                t.text("Stop");
-							},
-						});
-					}, 1000);
+			let i = 1;
+			const interval = setInterval(function () {
+				t.text(`Reconnecting (${i++}s)`);
+				$.ajax({
+					url: "/",
+					complete: function (data) {
+						clearInterval(interval);
+						t.attr("disabled", false);
+						t.text("Stop");
+					},
+				});
+			}, 1000);
 		});
 
 		function addAlarm() {
@@ -525,7 +509,8 @@ void loop()
 				},
 			});
 		}
-    const alarms = [
+
+		const alarms = [
 )html");
     for (const Alarm &alarm : alarms)
     {
@@ -537,20 +522,20 @@ void loop()
     }
 
     client.println(R"html(
-  ];
+		];
 		alarms.forEach((alarm) => {
 			$("#alarms").append(
-				`<div class="row g-3">
-					<div class="col-auto">
-						<label for="staticEmail2" class="visually-hidden">HH</label>
-						<input type="number" readonly class="form-control" id="staticEmail2" value="${alarm[0]}" />
+				`<div class="flex items-center space-x-2">
+					<div>
+						<label for="staticEmail2" class="sr-only">HH</label>
+						<input type="number" readonly class="border border-gray-300 rounded-md px-4 py-2" id="staticEmail2" value="${alarm[0]}" />
 					</div>
-					<div class="col-auto">
-						<label for="inputPassword2" class="visually-hidden">MM</label>
-						<input type="number" readonly class="form-control" id="inputPassword2" value="${alarm[1]}" />
+					<div>
+						<label for="inputPassword2" class="sr-only">MM</label>
+						<input type="number" readonly class="border border-gray-300 rounded-md px-4 py-2" id="inputPassword2" value="${alarm[1]}" />
 					</div>
-					<div class="col-auto">
-						<button type="submit" class="btn btn-danger mb-3" onclick="deleteAlarm(${alarm[0]}, ${alarm[1]})">
+					<div>
+						<button type="submit" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md" onclick="deleteAlarm(${alarm[0]}, ${alarm[1]})">
 							Delete
 						</button>
 					</div>
@@ -559,7 +544,7 @@ void loop()
 		});
 
 		function deleteAlarm(HH, MM) {
-      //add 0 if HH or MM is less than 10
+			//add 0 if HH or MM is less than 10
 			if (HH < 10) {
 				HH = "0" + HH;
 			}
@@ -576,6 +561,6 @@ void loop()
 		}
 	</script>
 </html>
-    )html");
+)html");
   }
 }
