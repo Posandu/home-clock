@@ -11,13 +11,13 @@
 #include <vector>
 
 #define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
+#define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3C
-#define SPEAKER_PIN D7
+#define SPEAKER_PIN D5
 #define WIFI_SSID "Dialog 4G 544"
 #define WIFI_PASS "5d1ddCFD"
-#define OFF_BTN D8
+#define OFF_BTN D6
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -39,195 +39,205 @@ WiFiServer server(80);
 
 bool isRingingAlarm = false;
 
-void displayTime()
+void renderViews()
 {
-  if (!isRingingAlarm)
-  {
-    display.stopscroll();
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
+    if (!isRingingAlarm)
+    {
+        display.stopscroll();
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(WHITE);
+        display.setCursor(0, 0);
 
-    time_t epochTime = timeClient.getEpochTime();
-    display.print(weekDays[timeClient.getDay()]);
-    display.print(" ");
-    struct tm *ptm = gmtime((time_t *)&epochTime);
-    display.print(months[ptm->tm_mon]);
-    display.println();
-    display.println();
+        time_t epochTime = timeClient.getEpochTime();
+        display.print(weekDays[timeClient.getDay()]);
+        display.print(", ");
+        struct tm *ptm = gmtime((time_t *)&epochTime);
+        display.print(months[ptm->tm_mon]);
+        display.print(" ");
+        display.print(timeClient.getDay());
+        display.println();
+        display.println();
 
-    // Display time
-    display.setTextSize(2);
-    display.print(timeClient.getHours() % 12 == 0 ? 12 : timeClient.getHours() % 12);
-    display.print(":");
-    display.print(timeClient.getMinutes());
-    display.display();
-  }
-  else
-  {
-    display.clearDisplay();
-    display.display();
-    display.setCursor(0, 0);
-    display.setTextSize(3);
-    display.print("ALARM");
-    display.display();
-  }
+        // Display time
+        display.setTextSize(4);
+        display.print(timeClient.getHours() % 12 == 0 ? 12 : timeClient.getHours() % 12);
+        display.print(":");
+        display.print(timeClient.getMinutes());
+
+        display.display();
+    }
+    else
+    {
+        display.clearDisplay();
+        display.display();
+        display.setCursor(0, 0);
+        display.setTextSize(3);
+        display.print("ALARM");
+        display.display();
+    }
 }
 
 struct Alarm
 {
-  unsigned int hour;
-  unsigned int minute;
+    unsigned int hour;
+    unsigned int minute;
+    unsigned int weekend;
 };
 
 std::vector<Alarm> alarms;
 
 void sendAlarmsToServer(const String &json)
 {
-  WiFiClient client;
-  HTTPClient http;
+    WiFiClient client;
+    HTTPClient http;
 
-  if (http.begin(client, "http://home-s1.tronic247.com/"))
-  {
-    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
-    client->setInsecure();
-
-    http.addHeader("Content-Type", "application/json");
-    // add valid headers such as user agent
-
-    int httpCode = http.POST(json);
-    if (httpCode == HTTP_CODE_OK)
+    if (http.begin(client, "http://home-s1.tronic247.com/"))
     {
-      Serial.println("Alarms saved successfully");
+        std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+        client->setInsecure();
+
+        http.addHeader("Content-Type", "application/json");
+        // add valid headers such as user agent
+
+        int httpCode = http.POST(json);
+        if (httpCode == HTTP_CODE_OK)
+        {
+            Serial.println("Alarms saved successfully");
+        }
+        else
+        {
+            Serial.print("Failed to save alarms. Error code: ");
+            Serial.println(httpCode);
+        }
+
+        http.end();
     }
     else
     {
-      Serial.print("Failed to save alarms. Error code: ");
-      Serial.println(httpCode);
+        Serial.println("Failed to connect to server");
     }
-
-    http.end();
-  }
-  else
-  {
-    Serial.println("Failed to connect to server");
-  }
 }
 
 String serializeAlarms()
 {
-  StaticJsonDocument<512> doc;
+    StaticJsonDocument<512> doc;
 
-  JsonArray alarmsJson = doc.createNestedArray("alarms");
+    JsonArray alarmsJson = doc.createNestedArray("alarms");
 
-  for (const Alarm &alarm : alarms)
-  {
-    JsonObject alarmJson = alarmsJson.createNestedObject();
-    alarmJson["hour"] = alarm.hour;
-    alarmJson["minute"] = alarm.minute;
-  }
+    for (const Alarm &alarm : alarms)
+    {
+        JsonObject alarmJson = alarmsJson.createNestedObject();
+        alarmJson["hour"] = alarm.hour;
+        alarmJson["minute"] = alarm.minute;
+        alarmJson["weekend"] = alarm.weekend;
+    }
 
-  String json;
+    String json;
 
-  serializeJson(doc, json);
+    serializeJson(doc, json);
 
-  return json;
+    return json;
 }
 
 void saveAlarms()
 {
-  String json = serializeAlarms();
-  sendAlarmsToServer(json);
+    String json = serializeAlarms();
+    sendAlarmsToServer(json);
 }
 
 void loadAlarms()
 {
-  WiFiClient client;
-  HTTPClient http;
+    WiFiClient client;
+    HTTPClient http;
 
-  if (http.begin(client, "http://home-s1.tronic247.com/"))
-  {
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
+    if (http.begin(client, "http://home-s1.tronic247.com/"))
     {
-      String json = http.getString();
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String json = http.getString();
 
-      StaticJsonDocument<512> doc;
-      deserializeJson(doc, json);
+            StaticJsonDocument<512> doc;
+            deserializeJson(doc, json);
 
-      JsonArray alarmsJson = doc["alarms"];
+            JsonArray alarmsJson = doc["alarms"];
 
-      Serial.println("Alarms loaded successfully");
-      Serial.println(json);
+            Serial.println("Alarms loaded successfully");
+            Serial.println(json);
 
-      for (JsonObject alarmJson : alarmsJson)
-      {
-        Alarm alarm;
-        alarm.hour = alarmJson["hour"];
-        alarm.minute = alarmJson["minute"];
-        alarms.push_back(alarm);
-      }
+            for (JsonObject alarmJson : alarmsJson)
+            {
+                Alarm alarm;
+                alarm.hour = alarmJson["hour"];
+                alarm.minute = alarmJson["minute"];
+                alarm.weekend = alarmJson["weekend"];
+                alarms.push_back(alarm);
+            }
+        }
+        else
+        {
+            Serial.print("Failed to load alarms. Error code: ");
+            Serial.println(httpCode);
+        }
+
+        http.end();
     }
     else
     {
-      Serial.print("Failed to load alarms. Error code: ");
-      Serial.println(httpCode);
+        Serial.println("Failed to connect to server");
     }
-
-    http.end();
-  }
-  else
-  {
-    Serial.println("Failed to connect to server");
-  }
 }
 
-void addAlarm(unsigned int hour, unsigned int minute)
+void addAlarm(unsigned int hour, unsigned int minute, unsigned int weekend = 0)
 {
-  Alarm alarm;
-  alarm.hour = hour;
-  alarm.minute = minute;
-  alarms.push_back(alarm);
-  saveAlarms();
+    Alarm alarm;
+    alarm.hour = hour;
+    alarm.minute = minute;
+    alarm.weekend = weekend;
+    alarms.push_back(alarm);
+    saveAlarms();
 }
 
 void deleteAlarm(unsigned int hour, unsigned int minute)
 {
-  unsigned int alarmId = 0;
+    unsigned int alarmId = 0;
 
-  for (const Alarm &alarm : alarms)
-  {
-    if (alarm.hour == hour && alarm.minute == minute)
+    for (const Alarm &alarm : alarms)
     {
-      alarms.erase(alarms.begin() + alarmId);
-      break;
+        if (alarm.hour == hour && alarm.minute == minute)
+        {
+            alarms.erase(alarms.begin() + alarmId);
+            break;
+        }
+
+        alarmId++;
     }
 
-    alarmId++;
-  }
-
-  saveAlarms();
+    saveAlarms();
 }
 
 unsigned int lastPlayedAlarmId = 0;
 
 void checkAlarms()
 {
-  if (!isRingingAlarm)
-  {
-    for (const Alarm &alarm : alarms)
+    if (!isRingingAlarm)
     {
-      if (alarm.hour == timeClient.getHours() && alarm.minute == timeClient.getMinutes() && alarm.hour * 60 + alarm.minute != lastPlayedAlarmId)
-      {
-        isRingingAlarm = true;
+        for (const Alarm &alarm : alarms)
+        {
+            int alarmTime = alarm.hour * 60 + alarm.minute;
+            int currentDay = timeClient.getDay();
+            bool isWeekend = (currentDay == 0 || currentDay == 6);
 
-        lastPlayedAlarmId = alarm.hour * 60 + alarm.minute;
-
-        break; // Exit the loop after the first alarm is found
-      }
+            if (alarm.hour == timeClient.getHours() && alarm.minute == timeClient.getMinutes() && alarmTime != lastPlayedAlarmId &&
+                ((alarm.weekend == 1 && isWeekend)))
+            {
+                isRingingAlarm = true;
+                lastPlayedAlarmId = alarmTime;
+                break; // Exit the loop after the first alarm is found
+            }
+        }
     }
-  }
 }
 
 const unsigned long toneDuration = 800;  // Duration of each tone in milliseconds
@@ -237,233 +247,247 @@ int toneCounter = 0;
 
 void alarm_music()
 {
-  unsigned long currentTime = millis();
+    unsigned long currentTime = millis();
 
-  if (isRingingAlarm)
-  {
-    if (currentTime - previousTime >= toneDuration)
+    if (isRingingAlarm)
     {
-      previousTime = currentTime;
+        if (currentTime - previousTime >= toneDuration)
+        {
+            previousTime = currentTime;
 
-      if (toneCounter % 2 == 0)
-      {
-        tone(SPEAKER_PIN, 800); // Play tone
-      }
-      else
-      {
-        noTone(SPEAKER_PIN); // Silence
-      }
+            if (toneCounter % 2 == 0)
+            {
+                tone(SPEAKER_PIN, 600); // Play tone
+            }
+            else
+            {
+                noTone(SPEAKER_PIN); // Silence
+            }
 
-      toneCounter++;
+            toneCounter++;
+        }
     }
-  }
-  else
-  {
-  }
 }
 
 void setup()
 {
-  Serial.begin(9600);
+    Serial.begin(9600);
 
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
-  {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ;
-  }
+    if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
+    {
+        Serial.println(F("SSD1306 allocation failed"));
+        for (;;)
+            ;
+    }
 
-  display.display();
-  delay(1000);
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.setTextColor(WHITE);
-  display.setTextSize(1);
-  display.setRotation(2);
-  display.println("Loading...");
-  display.display();
-  delay(2000);
+    display.display();
+    delay(1000);
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextColor(WHITE);
+    display.setTextSize(1);
+    // display.setRotation(2);
+    display.println("Loading...");
+    display.display();
+    delay(2000);
 
-  /**
-   * Connect to the internet
-   */
-  WiFi.begin(ssid, password);
-  /*Keep trying to connect to the internet until it is connected*/
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println(WiFi.localIP());
+    /**
+     * Connect to the internet
+     */
+    WiFi.begin(ssid, password);
+    /*Keep trying to connect to the internet until it is connected*/
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println(WiFi.localIP());
 
-  /**
-   * Connect to the NTP server
-   */
-  timeClient.begin();
-  timeClient.setTimeOffset(19800);
-  timeClient.forceUpdate();
+    /**
+     * Connect to the NTP server
+     */
+    timeClient.begin();
+    timeClient.setTimeOffset(19800);
+    timeClient.forceUpdate();
 
-  /**
-   * Server start
-   */
-  server.begin();
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setRotation(2);
-  display.display();
+    /**
+     * Server start
+     */
+    server.begin();
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.display();
 
-  /**
-   * Pinmodes
-   */
-  pinMode(SPEAKER_PIN, OUTPUT);
-  pinMode(OFF_BTN, INPUT);
-  digitalWrite(SPEAKER_PIN, LOW);
-  digitalWrite(OFF_BTN, LOW);
+    /**
+     * Pinmodes
+     */
+    pinMode(SPEAKER_PIN, OUTPUT);
+    pinMode(OFF_BTN, INPUT);
 
-  /**
-   * Alarm stuff
-   */
-  loadAlarms();
+    /**
+     * Alarm stuff
+     */
+    loadAlarms();
 }
 
 void loop()
 {
-  timeClient.update();
+    /*
+    Todo: figure out a more efficient way to do this
+    */
+    alarm_music();
+    checkAlarms();
+    renderViews();
 
-  /*
-  Todo: figure out a more efficient way to do this
-  */
-  checkAlarms();
-  alarm_music();
-  displayTime();
+    if (digitalRead(OFF_BTN) == HIGH)
+    {
+        isRingingAlarm = false;
+        noTone(SPEAKER_PIN);
+    }
 
-  if (digitalRead(OFF_BTN) == HIGH)
-  {
-    isRingingAlarm = false;
-    noTone(SPEAKER_PIN);
-  }
+    // Check if a client has connected
+    WiFiClient client = server.available();
+    if (!client)
+    {
+        return;
+    }
 
-  // Check if a client has connected
-  WiFiClient client = server.available();
-  if (!client)
-  {
-    return;
-  }
+    while (!client.available())
+    {
+        delay(1);
+    }
 
-  while (!client.available())
-  {
-    delay(1);
-  }
+    // Read the first line of the request
+    String request = client.readStringUntil('\r');
+    client.flush();
 
-  // Read the first line of the request
-  String request = client.readStringUntil('\r');
-  client.flush();
+    if (request.indexOf("/ALARM") != -1)
+    {
+        noTone(SPEAKER_PIN); // Silence
+        isRingingAlarm = true;
+    }
 
-  if (request.indexOf("/ALARM") != -1)
-  {
-    isRingingAlarm = true;
-  }
+    /**
+     * If request has /ADDALARM/HH/MM/W
+     */
+    if (request.indexOf("/ADDALARM/") != -1)
+    {
+        int hourIndex = request.indexOf("/ADDALARM/") + 10;
+        int hour = request.substring(hourIndex, hourIndex + 2).toInt();
 
-  /**
-   * If request has /ADDALARM/HH/MM
-   */
-  if (request.indexOf("/ADDALARM/") != -1)
-  {
-    int hourIndex = request.indexOf("/ADDALARM/") + 10;
-    int hour = request.substring(hourIndex, hourIndex + 2).toInt();
+        int minuteIndex = hourIndex + 3;
+        int minute = request.substring(minuteIndex, minuteIndex + 2).toInt();
 
-    int minuteIndex = hourIndex + 3;
-    int minute = request.substring(minuteIndex, minuteIndex + 2).toInt();
+        int weekendIndex = minuteIndex + 3;
+        int weekend = request.substring(weekendIndex, weekendIndex + 1).toInt();
 
-    addAlarm(hour, minute);
-  }
+        addAlarm(hour, minute, weekend);
+    }
 
-  /**
-   * If request has /DELETEALARM/HH/MM
-   */
-  if (request.indexOf("/DELETEALARM/") != -1)
-  {
-    int hourIndex = request.indexOf("/DELETEALARM/") + 13;
-    int hour = request.substring(hourIndex, hourIndex + 2).toInt();
+    /**
+     * If request has /DELETEALARM/HH/MM
+     */
+    if (request.indexOf("/DELETEALARM/") != -1)
+    {
+        int hourIndex = request.indexOf("/DELETEALARM/") + 13;
+        int hour = request.substring(hourIndex, hourIndex + 2).toInt();
 
-    int minuteIndex = hourIndex + 3;
-    int minute = request.substring(minuteIndex, minuteIndex + 2).toInt();
+        int minuteIndex = hourIndex + 3;
+        int minute = request.substring(minuteIndex, minuteIndex + 2).toInt();
 
-    deleteAlarm(hour, minute);
-  }
+        deleteAlarm(hour, minute);
+    }
 
-  /**
-   * If request is ALARMS
-   */
-  if (request.indexOf("/JSON") != -1)
-  {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: application/json");
-    client.println(""); //  do not forget this one
-
-    client.println(serializeAlarms());
-  }
-  else if (request.indexOf("/STOP") != -1)
-  {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: text/html");
-    client.println(""); //  do not forget this one
-    client.println("1");
-    ESP.restart();
-  }
-  else
-  {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: text/html");
-    client.println(""); // do not forget this one
-    client.println(R"html(
+    /**
+     * If request is ALARMS
+     */
+    if (request.indexOf("/JSON") != -1)
+    {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: application/json");
+        client.println("{\"running_for\": " + String(millis() / 1000) + ", \"alarms\": ");
+        client.println(serializeAlarms());
+        client.println("}");
+    }
+    else if (request.indexOf("/STOP") != -1)
+    {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: text/html");
+        client.println(""); //  do not forget this one
+        client.println("1");
+        ESP.restart();
+    }
+    else
+    {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: text/html");
+        client.println(""); // do not forget this one
+        client.println(R"html(
 <!DOCTYPE html>
 <html>
 	<head>
 		  <script src="https://cdn.tailwindcss.com"></script>
 	</head>
 
-	<div class="p-4 container-md m-auto">
-		<h1 class="text-4xl font-bold">Alarms</h1>
-		<button href="/ALARM" class="bg-blue-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" id="trigger">Trigger</button>
-		<button href="/STOP" class="bg-red-500 text-white font-bold py-2 px-4 rounded ml-2" id="stop">Stop</button>
+	<div class="m-auto max-w-2xl shadow-xl border rounded-lg px-6 py-4 mt-8">
+		<button class="bg-blue-500 border border-transparent text-white py-2 px-4 rounded transition-all hover:bg-blue-700 active:bg-blue-800" id="trigger">Manually Trigger the alarm</button>
+		<button class="border border-red-500 text-red-600 py-2 px-4 rounded transition-all hover:bg-red-100 active:bg-red-200" id="stop">Restart</button>
+        <button class="border border-transparent bg-gray-500 text-white py-2 px-4 rounded transition-all hover:bg-gray-600 active:bg-gray-700" id="loadLogs">Load Logs</button>
 
 		<br /><br />
+
+		<h1 class="text-2xl font-semibold mb-2">Add Alarm</h1>
 
 		<div class="flex items-center space-x-2">
 			<div>
 				<label for="HH" class="sr-only">HH</label>
-				<input type="number" class="border border-gray-300 rounded-md px-4 py-2" id="HH" />
+				<input type="number" class="border focus:ring border-gray-300 rounded-md outline-none px-4 py-2" id="HH" />
 			</div>
 			<div>
 				<label for="MM" class="sr-only">MM</label>
-				<input type="number" class="border border-gray-300 rounded-md px-4 py-2" id="MM" />
+				<input type="number" class="border focus:ring border-gray-300 rounded-md outline-none px-4 py-2" id="MM" />
+			</div>
+      <div>
+				<label for="MM" class="sr-only">Weekends?</label>
+				<input type="checkbox" class="border focus:ring border-gray-300 rounded-md outline-none px-4 py-2" id="ONWEEKENDS" />
 			</div>
 			<div>
-				<button type="submit" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md" onclick="addAlarm()">
+				<button type="submit" class="bg-blue-500 border border-transparent text-white py-2 px-4 rounded transition-all hover:bg-blue-700 active:bg-blue-800" onclick="addAlarm()">
 					Add Alarm
 				</button>
 			</div>
 		</div>
 
-			<h2 class="text-2xl font-bold mt-4">Current Alarms</h2>
+			<h2 class="text-2xl font-semibold my-2">Current Alarms</h2>
 			<div id="alarms"></div>
+
+            <h2 class="text-2xl font-semibold my-2">Log</h2>
+            <pre id="LOG"></pre>
 		</div>
 	</div>
 
 	<script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
 
 	<script>
+        function addLog(...a){
+            $("#LOG").append(a.join(" ") + "\n");
+        }
+
+        addLog("Started");
+
 		$("#trigger").click(function () {
 			let t = $(this);
 			$(this).attr("disabled", true);
+
 			$.ajax({
 				url: "/ALARM",
 				//when the request is done
 				complete: function () {
 					setTimeout(function () {
 						t.attr("disabled", false);
-					}, 8000);
+					}, 800);
+
+                    addLog("Triggered");
 				},
 			});
 		});
@@ -475,6 +499,8 @@ void loop()
 			$.ajax({
 				url: "/STOP",
 			});
+
+            addLog("Stopped");
 
 			let i = 1;
 			const interval = setInterval(function () {
@@ -503,29 +529,43 @@ void loop()
 			}
 
 			$.ajax({
-				url: `/ADDALARM/${HH}/${MM}`,
+				url: `/ADDALARM/${HH}/${MM}/${$("#ONWEEKENDS").is(":checked") ? 1 : 0}`,
 				complete: function () {
 					window.location.reload();
 				},
 			});
 		}
 
+        $("#loadLogs").click(function(){
+            $.ajax({
+                url: "/JSON",
+                complete: function(data){
+                    addLog("Loaded Logs");
+
+                    const blob = new Blob([data.responseText], {type: "text/json"});
+                    window.open(URL.createObjectURL(blob), "Logs", "width=600,height=400,scrollbars=yes");
+                }
+            });
+        });
+
 		const alarms = [
 )html");
-    for (const Alarm &alarm : alarms)
-    {
-      client.print("[");
-      client.print(alarm.hour);
-      client.print(",");
-      client.print(alarm.minute);
-      client.print("],");
-    }
+        for (const Alarm &alarm : alarms)
+        {
+            client.print("[");
+            client.print(alarm.hour);
+            client.print(",");
+            client.print(alarm.minute);
+            client.print(",");
+            client.print(alarm.weekend);
+            client.print("],");
+        }
 
-    client.println(R"html(
+        client.println(R"html(
 		];
 		alarms.forEach((alarm) => {
 			$("#alarms").append(
-				`<div class="flex items-center space-x-2">
+				`<div class="flex items-center space-x-2 mb-3">
 					<div>
 						<label for="staticEmail2" class="sr-only">HH</label>
 						<input type="number" readonly class="border border-gray-300 rounded-md px-4 py-2" id="staticEmail2" value="${alarm[0]}" />
@@ -535,7 +575,8 @@ void loop()
 						<input type="number" readonly class="border border-gray-300 rounded-md px-4 py-2" id="inputPassword2" value="${alarm[1]}" />
 					</div>
 					<div>
-						<button type="submit" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md" onclick="deleteAlarm(${alarm[0]}, ${alarm[1]})">
+           ${alarm[2] == 1 ? '<span class="text-green-500">Also on weekends</span>' : ""}
+						<button type="submit" class="bg-red-500 border border-transparent text-white py-2 px-4 rounded transition-all hover:bg-red-700 active:bg-red-800" onclick="deleteAlarm(${alarm[0]}, ${alarm[1]})">
 							Delete
 						</button>
 					</div>
@@ -562,5 +603,5 @@ void loop()
 	</script>
 </html>
 )html");
-  }
+    }
 }
